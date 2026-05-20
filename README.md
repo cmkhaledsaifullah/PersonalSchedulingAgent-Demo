@@ -48,7 +48,7 @@ LangGraph ReAct Agent (Claude)
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/cmkhaledsaifullah/PersonalSchedulingAgent-Demo.git
 cd PersonalSchedulingAgent-Demo
 ```
 
