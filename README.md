@@ -19,7 +19,7 @@ This project **demos two tool integration approaches** side by side:
 User Prompt
     │
     ▼
-LangGraph ReAct Agent (Claude)
+LangGraph ReAct Agent (Claude / GPT / Google)
     │
     ├── Direct API Approach ──────────────────────────────────┐
     │       ├── ReadEmailsTool          → Gmail API           │
