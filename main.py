@@ -37,7 +37,7 @@ load_dotenv()
 def run_direct(query: str, prompt: str | None, llm_provider: str):
     """Run the agent using direct Google API tools."""
     from auth.google_auth import get_google_credentials
-    from tools.direct_api import CreateCalendarEventTool, CreateMeetLinkTool, ReadEmailsTool
+    from tools.direct_api import CreateCalendarEventTool, CreateMeetLinkTool, ReadEmailsTool, CreateReminderTool
     from agent.agent import create_scheduling_agent, run_agent
 
     print("\n🔐 Authenticating with Google...")
@@ -48,15 +48,17 @@ def run_direct(query: str, prompt: str | None, llm_provider: str):
         ReadEmailsTool(credentials=creds),
         CreateCalendarEventTool(credentials=creds),
         CreateMeetLinkTool(credentials=creds),
+        CreateReminderTool(credentials=creds),
     ]
 
     agent = create_scheduling_agent(tools, llm_provider=llm_provider)
 
     user_prompt = prompt or (
-        f"Please check my emails (query: '{query}') and schedule any "
-        "meetings you find. For online meetings create a Google Meet link. "
-        "For in-person meetings add the address to the calendar event. "
-        "Send invites to all relevant participants."
+        f"Please check my emails (query: '{query}') and handle each one appropriately: "
+        "schedule a meeting with the sender if they're requesting to meet, "
+        "create a personal reminder if the email asks me to do something (like call an office), "
+        "or block the date on my calendar if the email announces an event or date I should attend. "
+        "Process all emails and confirm each action taken."
     )
 
     print(f"💬 Prompt: {user_prompt}\n")
@@ -79,12 +81,13 @@ async def run_mcp(query: str, prompt: str | None, llm_provider: str):
 
         agent = create_scheduling_agent(tools, llm_provider=llm_provider)
 
-        user_prompt = prompt or (
-            f"Please check my emails (query: '{query}') and schedule any "
-            "meetings you find. For online meetings create a Google Meet link. "
-            "For in-person meetings add the address to the calendar event. "
-            "Send invites to all relevant participants."
-        )
+    user_prompt = prompt or (
+        f"Please check my emails (query: '{query}') and handle each one appropriately: "
+        "schedule a meeting with the sender if they're requesting to meet, "
+        "create a personal reminder if the email asks me to do something (like call an office), "
+        "or block the date on my calendar if the email announces an event or date I should attend. "
+        "Process all emails and confirm each action taken."
+    )
 
         print(f"💬 Prompt: {user_prompt}\n")
         print("🤖 Agent is working...\n" + "-" * 60)

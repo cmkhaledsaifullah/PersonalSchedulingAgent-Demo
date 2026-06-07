@@ -16,21 +16,38 @@ from pydantic import BaseModel, Field
 
 
 class CreateCalendarEventInput(BaseModel):
-    title: str = Field(description="Title / subject of the meeting.")
+    title: str = Field(description="Title / subject of the meeting or calendar block.")
     description: str = Field(
         default="",
         description="Description or agenda of the meeting.",
     )
-    start_datetime: str = Field(
+    all_day: bool = Field(
+        default=False,
+        description=(
+            "Set to True for all-day events (e.g. holidays, school days, awareness days). "
+            "When True, provide 'event_date' instead of start_datetime/end_datetime."
+        ),
+    )
+    event_date: Optional[str] = Field(
+        default=None,
+        description=(
+            "Date for all-day events in YYYY-MM-DD format, e.g. '2025-06-15'. "
+            "Only used when all_day=True."
+        ),
+    )
+    start_datetime: Optional[str] = Field(
+        default=None,
         description=(
             "Start date and time in ISO 8601 format, e.g. '2025-06-15T14:00:00'. "
-            "Always include the date and time."
-        )
+            "Required when all_day=False."
+        ),
     )
-    end_datetime: str = Field(
+    end_datetime: Optional[str] = Field(
+        default=None,
         description=(
-            "End date and time in ISO 8601 format, e.g. '2025-06-15T15:00:00'."
-        )
+            "End date and time in ISO 8601 format, e.g. '2025-06-15T15:00:00'. "
+            "Required when all_day=False."
+        ),
     )
     timezone: str = Field(
         default="America/New_York",
@@ -80,8 +97,10 @@ class CreateCalendarEventTool(BaseTool):
         self,
         title: str,
         description: str = "",
-        start_datetime: str = "",
-        end_datetime: str = "",
+        all_day: bool = False,
+        event_date: Optional[str] = None,
+        start_datetime: Optional[str] = None,
+        end_datetime: Optional[str] = None,
         timezone: str = "America/New_York",
         attendee_emails: Optional[List[str]] = None,
         meeting_type: Literal["online", "in_person"] = "online",
@@ -90,26 +109,38 @@ class CreateCalendarEventTool(BaseTool):
         """Create the calendar event and return a JSON summary."""
         service = build("calendar", "v3", credentials=self.credentials)
 
-        event_body: dict = {
-            "summary": title,
-            "description": description,
-            "start": {
-                "dateTime": start_datetime,
-                "timeZone": timezone,
-            },
-            "end": {
-                "dateTime": end_datetime,
-                "timeZone": timezone,
-            },
-            "attendees": [
-                {"email": email} for email in (attendee_emails or [])
-            ],
-            # Send email invitations to all attendees
-            "guestsCanModify": False,
-            "guestsCanInviteOthers": False,
-        }
+        if all_day and event_date:
+            event_body: dict = {
+                "summary": title,
+                "description": description,
+                "start": {"date": event_date},
+                "end": {"date": event_date},
+                "attendees": [
+                    {"email": email} for email in (attendee_emails or [])
+                ],
+                "guestsCanModify": False,
+                "guestsCanInviteOthers": False,
+            }
+        else:
+            event_body = {
+                "summary": title,
+                "description": description,
+                "start": {
+                    "dateTime": start_datetime,
+                    "timeZone": timezone,
+                },
+                "end": {
+                    "dateTime": end_datetime,
+                    "timeZone": timezone,
+                },
+                "attendees": [
+                    {"email": email} for email in (attendee_emails or [])
+                ],
+                "guestsCanModify": False,
+                "guestsCanInviteOthers": False,
+            }
 
-        if meeting_type == "online":
+        if meeting_type == "online" and not all_day:
             # Request a Google Meet conference link
             event_body["conferenceData"] = {
                 "createRequest": {
@@ -120,12 +151,13 @@ class CreateCalendarEventTool(BaseTool):
         elif meeting_type == "in_person" and location:
             event_body["location"] = location
 
+        send_updates = "all" if attendee_emails else "none"
         created_event = (
             service.events()
             .insert(
                 calendarId="primary",
                 body=event_body,
-                sendUpdates="all",        # Send invite emails to attendees
+                sendUpdates=send_updates,
                 conferenceDataVersion=1,  # Required to generate Meet links
             )
             .execute()
@@ -135,13 +167,18 @@ class CreateCalendarEventTool(BaseTool):
             "event_id": created_event.get("id"),
             "html_link": created_event.get("htmlLink"),
             "title": created_event.get("summary"),
-            "start": created_event.get("start", {}).get("dateTime"),
-            "end": created_event.get("end", {}).get("dateTime"),
+            "all_day": all_day,
             "meeting_type": meeting_type,
             "attendees": [a["email"] for a in created_event.get("attendees", [])],
         }
 
-        if meeting_type == "online":
+        if all_day:
+            result["date"] = created_event.get("start", {}).get("date")
+        else:
+            result["start"] = created_event.get("start", {}).get("dateTime")
+            result["end"] = created_event.get("end", {}).get("dateTime")
+
+        if meeting_type == "online" and not all_day:
             conference = created_event.get("conferenceData", {})
             entry_points = conference.get("entryPoints", [])
             meet_link = next(
