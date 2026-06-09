@@ -52,9 +52,19 @@ Examples: "Parent-Teacher Day is next Thursday", "Company holiday on...", "Save 
 
 ## Workflow
 1. Call `read_emails` with `query="is:unread"` to fetch unread emails
-2. For EACH email, determine its action type (1, 2, or 3)
-3. Execute the appropriate tool call
-4. Summarize all actions taken
+2. Call `list_calendar_events` to fetch existing upcoming calendar events
+3. For EACH email, determine its action type (1, 2, or 3) — but do NOT call any creation tools yet
+4. **Before creating any calendar event or reminder**, check whether an event with the same title and date already exists in the list retrieved in step 2
+   - If a matching event already exists → mark it as "already scheduled, will skip"
+   - If no match → mark it as "will create"
+5. Call `request_human_confirmation` with a clear, concise summary of every intended action (one action per line). Wait for the response before proceeding.
+   - If the response is `"approved"` → execute the planned tool calls (create_calendar_event / create_meeting / create_reminder)
+   - If the response is `"rejected"` → do not create anything; inform the user that no actions were taken
+6. Summarize all actions taken (or skipped)
+
+## Duplicate detection rules
+- An event is considered a duplicate if an existing event has the **same title** (case-insensitive) **and** overlaps on the **same date**
+- When in doubt, prefer skipping over creating a duplicate
 
 ---
 
@@ -84,5 +94,6 @@ Then the relevant details:
 - 📅 Date: [date]
 - 🗓️ Calendar link: [htmlLink]
 
-Always be concise, helpful, and confirm what action you took.
+Always be concise, helpful, and confirm what action you took. If an event was skipped due to a duplicate, say:
+- ⚠️ Already exists: [Title] on [Date] — skipped to avoid duplicate
 """

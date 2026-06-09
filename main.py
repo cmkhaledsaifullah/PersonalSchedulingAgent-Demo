@@ -38,6 +38,7 @@ def run_direct(query: str, prompt: str | None, llm_provider: str):
     """Run the agent using direct Google API tools."""
     from auth.google_auth import get_google_credentials
     from tools.direct_api import CreateCalendarEventTool, CreateMeetLinkTool, ReadEmailsTool, CreateReminderTool
+    from tools.confirmation_tool import request_human_confirmation
     from agent.agent import create_scheduling_agent, run_agent
 
     print("\n🔐 Authenticating with Google...")
@@ -49,6 +50,7 @@ def run_direct(query: str, prompt: str | None, llm_provider: str):
         CreateCalendarEventTool(credentials=creds),
         CreateMeetLinkTool(credentials=creds),
         CreateReminderTool(credentials=creds),
+        request_human_confirmation,
     ]
 
     agent = create_scheduling_agent(tools, llm_provider=llm_provider)
@@ -73,12 +75,14 @@ def run_direct(query: str, prompt: str | None, llm_provider: str):
 async def run_mcp(query: str, prompt: str | None, llm_provider: str):
     """Run the agent using MCP server tools."""
     from tools.mcp_tools.mcp_wrapper import load_mcp_tools
+    from tools.confirmation_tool import request_human_confirmation
     from agent.agent import create_scheduling_agent, run_agent
 
     print("\n🚀 Starting MCP server...")
-    async with load_mcp_tools() as tools:
+    async with load_mcp_tools() as mcp_tools:
         print("✅ MCP server ready.\n")
 
+        tools = mcp_tools + [request_human_confirmation]
         agent = create_scheduling_agent(tools, llm_provider=llm_provider)
 
     user_prompt = prompt or (

@@ -35,11 +35,14 @@ Usage:
 """
 
 import os
+import uuid
 from typing import List, Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
+from langgraph.types import Command
 
 from agent.prompts import SCHEDULING_AGENT_SYSTEM_PROMPT
 
@@ -134,6 +137,7 @@ def create_scheduling_agent(
         model=llm,
         tools=tools,
         prompt=SCHEDULING_AGENT_SYSTEM_PROMPT,
+        checkpointer=MemorySaver(),
     )
 
     return agent
@@ -141,7 +145,11 @@ def create_scheduling_agent(
 
 def run_agent(agent, user_message: str) -> str:
     """
-    Invoke the agent with a user message and return the final text response.
+    Invoke the agent with a user message, handling human-in-the-loop confirmation.
+
+    When the agent calls request_human_confirmation, execution pauses here.
+    The planned actions are printed, the user is prompted for approval, and
+    the agent resumes with 'approved' or 'rejected'.
 
     Args:
         agent:        Compiled LangGraph agent from create_scheduling_agent().
@@ -150,20 +158,42 @@ def run_agent(agent, user_message: str) -> str:
     Returns:
         The agent's final response as a plain string.
     """
-    result = agent.invoke({"messages": [("human", user_message)]})
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    result = agent.invoke({"messages": [("human", user_message)]}, config=config)
 
-    # Extract the last AI message content
+    # Handle human-in-the-loop interrupts (may loop if agent asks multiple times)
+    while result.get("__interrupt__"):
+        interrupt_value = result["__interrupt__"][0].value
+
+        print("\n" + "=" * 60)
+        print("📋 PLANNED ACTIONS — Please review:")
+        print("=" * 60)
+        print(interrupt_value)
+        print("=" * 60)
+
+        while True:
+            answer = input("\nProceed with these actions? (y/n): ").strip().lower()
+            if answer in ("y", "n", "yes", "no"):
+                break
+            print("Please enter y or n.")
+
+        approval = "approved" if answer in ("y", "yes") else "rejected"
+        result = agent.invoke(Command(resume=approval), config=config)
+
+    return _extract_response(result)
+
+
+def _extract_response(result: dict) -> str:
+    """Extract the last AI message text from a LangGraph result."""
     messages = result.get("messages", [])
     for msg in reversed(messages):
         if hasattr(msg, "content") and msg.__class__.__name__ == "AIMessage":
             content = msg.content
             if isinstance(content, list):
-                # Handle structured content (text blocks)
                 return "\n".join(
                     block.get("text", "") if isinstance(block, dict) else str(block)
                     for block in content
                     if not (isinstance(block, dict) and block.get("type") == "tool_use")
                 )
             return str(content)
-
     return "No response from agent."
