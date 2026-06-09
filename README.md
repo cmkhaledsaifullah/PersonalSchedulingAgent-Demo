@@ -128,13 +128,79 @@ python demos/demo_direct_api.py --llm openai
 python demos/demo_mcp.py --llm google
 ```
 
+## Evaluation Setup
+
+This repo now includes two local evaluation harnesses in `evals/`.
+Both use mocked tools so you can evaluate agent behavior without calling
+real Gmail/Calendar APIs.
+
+### Files
+
+- `evals/run_eval.py` — tool-use evaluator (required/forbidden tool calls)
+- `evals/run_response_eval.py` — response-quality evaluator
+- `evals/scenarios/*.jsonl` — bucketed scenario datasets
+- `evals/cases.jsonl` — single-file compatibility dataset
+
+### Scenario buckets
+
+- `meeting_requests`
+- `reminder_tasks`
+- `event_announcements`
+- `ambiguous_intent`
+- `multi_email_batch`
+
+### Run tool-use evaluator (`run_eval.py`)
+
+```bash
+python evals/run_eval.py --llm google
+python evals/run_eval.py --llm google --bucket all
+python evals/run_eval.py --llm google --bucket meeting_requests
+python evals/run_eval.py --llm google --cases evals/cases.jsonl
+```
+
+### Run response evaluator (`run_response_eval.py`)
+
+```bash
+python evals/run_response_eval.py --llm google --bucket all
+python evals/run_response_eval.py --llm google --bucket ambiguous_intent
+python evals/run_response_eval.py --llm openai --bucket reminder_tasks
+```
+
+### Case format
+
+Each line in a `.jsonl` case file is a JSON object:
+
+```json
+{
+  "id": "meeting_request",
+  "prompt": "Check unread emails and schedule any meeting requests.",
+  "must_call": ["read_emails", "create_calendar_event"],
+  "must_not_call": ["create_reminder"],
+  "response_min_chars": 30,
+  "response_contains_any": ["scheduled", "calendar", "meeting"],
+  "response_contains_all": []
+}
+```
+
+Scoring in `run_eval.py` is pass/fail per case:
+
+- A case fails if any tool in `must_call` was not used
+- A case fails if any tool in `must_not_call` was used
+- Overall score is `passed/total`
+
+Scoring in `run_response_eval.py` is pass/fail per case:
+
+- Response length must satisfy `response_min_chars` (default: 30)
+- All tokens in `response_contains_all` must appear
+- At least one token in `response_contains_any` must appear (if provided)
+
 ### `--llm` options
 
 | Flag | Provider | Default model |
 |---|---|---|
 | `--llm anthropic` | Claude (Anthropic) | `claude-3-5-sonnet-20241022` |
 | `--llm openai` | GPT-4o (OpenAI) | `gpt-4o` |
-| `--llm google` | Gemini (Google) | `gemini-1.5-pro` |
+| `--llm google` | Gemini (Google) | `gemini-2.5-flash` |
 
 Override the model per-provider in `.env`:
 ```

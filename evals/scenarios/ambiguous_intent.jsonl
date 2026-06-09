@@ -1,0 +1,2 @@
+{"id":"ambiguous_email_safe_action","prompt":"Read unread emails and only schedule when details are clear; otherwise ask for clarification in your final response.","must_call":["read_emails"],"must_not_call":[],"response_contains_any":["clarify","details","could not"]}
+{"id":"insufficient_time_info","prompt":"Read unread emails and if time details are missing, explain what information is needed.","must_call":["read_emails"],"must_not_call":[],"response_contains_any":["time","information","needed"]}

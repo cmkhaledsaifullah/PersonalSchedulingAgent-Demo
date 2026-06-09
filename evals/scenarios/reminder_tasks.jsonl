@@ -1,0 +1,2 @@
+{"id":"task_to_reminder","prompt":"Read unread emails and create a personal reminder for action items requested from me.","must_call":["read_emails","create_reminder"],"must_not_call":[],"response_contains_any":["reminder","scheduled","created"]}
+{"id":"followup_request","prompt":"If an email asks me to follow up, add a reminder to my calendar.","must_call":["read_emails","create_reminder"],"must_not_call":[],"response_contains_any":["reminder","calendar"]}

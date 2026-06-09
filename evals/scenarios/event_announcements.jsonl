@@ -1,0 +1,2 @@
+{"id":"date_announcement_block","prompt":"Read unread emails and block my calendar for announced events I should attend.","must_call":["read_emails","create_calendar_event"],"must_not_call":[],"response_contains_any":["calendar","blocked","event"]}
+{"id":"all_day_announcement","prompt":"If an email announces an event date, create an all-day calendar block.","must_call":["read_emails","create_calendar_event"],"must_not_call":[],"response_contains_any":["all-day","calendar","event"]}

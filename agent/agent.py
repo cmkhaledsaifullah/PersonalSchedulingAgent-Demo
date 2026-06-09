@@ -49,7 +49,7 @@ LLMProvider = Literal["anthropic", "openai", "google"]
 DEFAULT_MODELS: dict[str, str] = {
     "anthropic": "claude-3-5-sonnet-20241022",
     "openai": "gpt-4o",
-    "google": "gemini-1.5-pro",
+    "google": "gemini-2.5-flash",
 }
 
 

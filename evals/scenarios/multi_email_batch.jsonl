@@ -1,0 +1,2 @@
+{"id":"batch_mixed_actions","prompt":"Process unread emails and apply mixed actions: meeting requests to calendar, tasks to reminders, announcements to calendar blocks.","must_call":["read_emails"],"must_not_call":[],"response_contains_any":["processed","emails","actions"]}
+{"id":"batch_summary_required","prompt":"Go through unread emails and complete required scheduling actions, then summarize each action.","must_call":["read_emails"],"must_not_call":[],"response_contains_any":["summary","action","email"]}

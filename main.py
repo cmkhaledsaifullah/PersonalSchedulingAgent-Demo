@@ -89,13 +89,13 @@ async def run_mcp(query: str, prompt: str | None, llm_provider: str):
         "Process all emails and confirm each action taken."
     )
 
-        print(f"💬 Prompt: {user_prompt}\n")
-        print("🤖 Agent is working...\n" + "-" * 60)
+    print(f"💬 Prompt: {user_prompt}\n")
+    print("🤖 Agent is working...\n" + "-" * 60)
 
-        response = run_agent(agent, user_prompt)
-        print("\n" + "=" * 60)
-        print(response)
-        print("=" * 60)
+    response = run_agent(agent, user_prompt)
+    print("\n" + "=" * 60)
+    print(response)
+    print("=" * 60)
 
 
 def interactive_menu() -> tuple[str, str, str, str | None]:

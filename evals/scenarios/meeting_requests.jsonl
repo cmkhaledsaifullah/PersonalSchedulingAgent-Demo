@@ -1,0 +1,2 @@
+{"id":"meeting_request_online","prompt":"Check unread emails and schedule any online meeting requests with the sender.","must_call":["read_emails","create_calendar_event"],"must_not_call":["create_reminder"],"response_contains_any":["scheduled","calendar","meeting"]}
+{"id":"meeting_request_with_meet_link","prompt":"Read unread emails and set up a meeting invite for meeting requests.","must_call":["read_emails","create_calendar_event"],"must_not_call":[],"response_contains_any":["invite","meeting","calendar"]}
