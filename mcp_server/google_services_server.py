@@ -68,6 +68,25 @@ def _get_calendar_service():
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
+def mark_email_as_read(
+    email_id: Annotated[str, "The Gmail message ID to mark as read."],
+) -> str:
+    """
+    Mark a Gmail email as read by removing its UNREAD label.
+
+    Call this after successfully processing each email so it won't appear
+    again in future 'is:unread' queries.
+    """
+    service = _get_gmail_service()
+    service.users().messages().modify(
+        userId="me",
+        id=email_id,
+        body={"removeLabelIds": ["UNREAD"]},
+    ).execute()
+    return json.dumps({"status": "ok", "email_id": email_id, "marked_as_read": True})
+
+
+@mcp.tool()
 def read_emails(
     max_results: Annotated[int, "Maximum number of emails to retrieve (1-20)"] = 5,
     query: Annotated[

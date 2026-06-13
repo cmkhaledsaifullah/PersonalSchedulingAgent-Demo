@@ -1,9 +1,8 @@
 # Personal Scheduling Agent Demo
 
-A personal AI agent that reads Gmail emails, classifies each one, and schedules
-Google Calendar events or reminders — with a **human confirmation step** before
-any changes are made, and **duplicate detection** to avoid creating the same
-event twice.
+A personal AI agent that reads Gmail emails and automatically schedules
+Google Calendar meetings — with Google Meet links for online meetings and
+physical addresses for in-person meetings.
 
 This project **demos two tool integration approaches** side by side:
 
@@ -25,17 +24,13 @@ LangGraph ReAct Agent (Claude / GPT / Google)
     ├── Direct API Approach ──────────────────────────────────┐
     │       ├── ReadEmailsTool          → Gmail API           │
     │       ├── CreateCalendarEventTool → Calendar API + Meet │
-    │       ├── CreateMeetLinkTool      → Calendar API        │
-    │       ├── CreateReminderTool      → Calendar API        │
-    │       └── request_human_confirmation → interrupt()      │
+    │       └── CreateMeetLinkTool      → Calendar API        │
     │                                                         │
     └── MCP Server Approach ──────────────────────────────────┘
-            ├── Google Services MCP Server (subprocess/stdio)
-            │       ├── read_emails
-            │       ├── create_meeting
-            │       ├── create_reminder
-            │       └── list_calendar_events
-            └── request_human_confirmation → interrupt()
+            └── Google Services MCP Server (subprocess/stdio)
+                    ├── read_emails
+                    ├── create_meeting
+                    └── list_calendar_events
 ```
 
 ---
@@ -44,7 +39,7 @@ LangGraph ReAct Agent (Claude / GPT / Google)
 
 - Python 3.11+
 - A Google Cloud project with **Gmail API** and **Google Calendar API** enabled
-- An API key for at least one supported LLM provider: **Anthropic** (Claude), **OpenAI** (GPT-4o), or **Google** (Gemini)
+- An Anthropic API key
 
 ---
 
@@ -67,10 +62,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env and add your API key(s) for the LLM provider(s) you want to use:
-#   ANTHROPIC_API_KEY  — for Claude
-#   OPENAI_API_KEY     — for GPT-4o
-#   GOOGLE_API_KEY     — for Gemini
+# Edit .env and add your ANTHROPIC_API_KEY
 ```
 
 ### 4. Set up Google OAuth2 credentials
@@ -237,9 +229,7 @@ PersonalSchedulingAgent-Demo/
 │   ├── direct_api/
 │   │   ├── gmail_tool.py     ← LangChain tool: read Gmail emails
 │   │   ├── calendar_tool.py  ← LangChain tool: create Calendar events
-│   │   ├── meet_tool.py      ← LangChain tool: create Meet links
-│   │   └── reminder_tool.py  ← LangChain tool: create personal reminders
-│   ├── confirmation_tool.py  ← Human-in-the-loop confirmation tool (interrupt)
+│   │   └── meet_tool.py      ← LangChain tool: create Meet links
 │   └── mcp_tools/
 │       └── mcp_wrapper.py    ← Connects to MCP server, loads tools
 │
@@ -248,7 +238,7 @@ PersonalSchedulingAgent-Demo/
 │
 ├── agent/
 │   ├── agent.py              ← LangGraph ReAct agent factory
-│   └── prompts.py            ← Scheduling system prompt
+│   └── prompts.py            ← Scheduling system prompt for Claude
 │
 └── demos/
     ├── demo_direct_api.py    ← Standalone direct API demo
@@ -257,100 +247,38 @@ PersonalSchedulingAgent-Demo/
 
 ---
 
-## How the Agent Classifies Emails
+## How the Agent Decides Meeting Type
 
-The agent reads each email and determines one of three action types:
+The agent reads email content and automatically detects:
 
-### Action Type 1 — Schedule a Meeting
-**Trigger**: Email contains a meeting **request** from someone who wants to meet with you.
-Examples: "Can we jump on a call?", "I'd like to schedule a chat", "Are you free on Friday?"
+- **Online meeting** → keywords like "video call", "Google Meet", "Zoom", "virtual", "remote"
+  → creates a Google Calendar event with an auto-generated **Google Meet link**
 
-The agent then determines the meeting format:
-- **Online** → keywords like "video call", "Google Meet", "Zoom", "virtual", "remote"
-  → creates a Calendar event with an auto-generated **Google Meet link**
-- **In-person** → keywords like a street address, "office", "coffee", "in-person"
-  → creates a Calendar event with the **physical location/address**
-
-### Action Type 2 — Create a Reminder
-**Trigger**: Email asks **you** to do something (call an office, follow up, book an appointment).
-Examples: "Please call our clinic", "Don't forget to...", "You need to reschedule..."
-
-→ creates a **personal popup reminder** on your Calendar. No invites are sent.
-
-### Action Type 3 — Block Calendar / Mark a Date
-**Trigger**: Email **announces** an event or date you should be aware of or attend.
-Examples: "Parent-Teacher Day is next Thursday", "Company holiday on...", "Save the date for..."
-
-→ creates an **all-day Calendar block**. No attendees unless explicitly mentioned.
+- **In-person meeting** → keywords like a street address, "office", "coffee", "in-person"
+  → creates a Google Calendar event with the **physical location/address**
 
 ---
 
 ## What the Agent Does (Step by Step)
 
 1. **Reads emails** from Gmail using the specified query
-2. **Checks existing calendar events** to detect potential duplicates before planning anything
-3. **Classifies** each email into one of three action types (Schedule Meeting / Create Reminder / Block Calendar)
-4. **Plans** all intended actions — skipping any that would duplicate an existing event (same title + same date)
-5. **Asks for confirmation** — presents the full action plan and waits for your approval (`y/n`) before touching the calendar
-6. **Executes** the approved actions (or stops cleanly if rejected):
-   - **Schedule Meeting** → Creates a Calendar event with attendee invitations and a Google Meet link (online) or location address (in-person)
-   - **Create Reminder** → Creates a personal popup reminder on Calendar (no invites sent)
-   - **Block Calendar** → Creates an all-day Calendar event marking the date
-7. **Confirms** all actions taken with a summary
-
----
-
-## Human-in-the-Loop Confirmation
-
-The agent **never writes to your calendar without your approval**.
-
-After reading and classifying all emails, the agent pauses and prints a plan like:
-
-```
-============================================================
-📋 PLANNED ACTIONS — Please review:
-============================================================
-1. 📅 Schedule Meeting — "1:1 with Alice" on 2026-06-12 at 10:00 AM (online)
-   Attendees: alice@example.com
-2. 🔔 Create Reminder — "Call dentist" on 2026-06-13 (all-day)
-3. ⏭️  Skip — "Team Standup" on 2026-06-12 already exists on calendar
-============================================================
-
-Proceed with these actions? (y/n):
-```
-
-- **`y` / yes** → the agent executes all planned creations
-- **`n` / no** → the agent stops; nothing is created
-
-This is implemented using LangGraph's `interrupt()` mechanism with a `MemorySaver`
-checkpointer, which suspends the graph mid-run and resumes it with the user's response.
-
----
-
-## Duplicate Detection
-
-Before presenting the plan, the agent fetches your upcoming calendar events and
-cross-checks each intended action:
-
-- An event is considered a **duplicate** if an existing calendar entry shares the
-  **same title** (case-insensitive) **and** the **same date**
-- Duplicates are listed in the confirmation summary as ⏭️ **skipped** — they are
-  never created, regardless of whether you approve or reject
-
-This prevents re-running the agent on already-processed emails from creating
-duplicate calendar entries.
+2. **Identifies** which emails contain meeting requests
+3. **Extracts** title, attendees, date/time, timezone, and meeting type
+4. **Creates** a Google Calendar event with:
+   - Attendee invitations (emails sent automatically)
+   - Google Meet link (online) or location address (in-person)
+5. **Confirms** the scheduled meeting with a summary
 
 ---
 
 ## MCP Server Details
 
-The MCP server (`mcp_server/google_services_server.py`) exposes four tools:
+The MCP server (`mcp_server/google_services_server.py`) exposes three tools:
 
 | Tool | Description |
 |---|---|
 | `read_emails` | List and read Gmail messages |
-| `create_meeting` | Create a Calendar event (online, in-person, or all-day block) |
-| `create_reminder` | Create a personal popup reminder (no invites sent) |
+| `create_meeting` | Create a Calendar event (online or in-person) |
 | `list_calendar_events` | List upcoming Calendar events |
 
 The server uses **stdio transport** (standard for local MCP servers) and is

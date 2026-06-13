@@ -15,6 +15,38 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 
+class MarkEmailAsReadInput(BaseModel):
+    email_id: str = Field(description="The Gmail message ID to mark as read.")
+
+
+class MarkEmailAsReadTool(BaseTool):
+    """Remove the UNREAD label from a Gmail message so it won't appear in future unread queries."""
+
+    name: str = "mark_email_as_read"
+    description: str = (
+        "Mark a Gmail email as read by its message ID. "
+        "Call this after successfully processing each email to prevent it from "
+        "appearing again on the next agent run."
+    )
+    args_schema: Type[BaseModel] = MarkEmailAsReadInput
+    credentials: Credentials = Field(exclude=True)
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    def _run(self, email_id: str) -> str:
+        service = build("gmail", "v1", credentials=self.credentials)
+        service.users().messages().modify(
+            userId="me",
+            id=email_id,
+            body={"removeLabelIds": ["UNREAD"]},
+        ).execute()
+        return json.dumps({"status": "ok", "email_id": email_id, "marked_as_read": True})
+
+    async def _arun(self, email_id: str) -> str:
+        return self._run(email_id=email_id)
+
+
 class ReadEmailsInput(BaseModel):
     max_results: int = Field(
         default=5,
